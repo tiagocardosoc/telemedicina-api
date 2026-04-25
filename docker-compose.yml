@@ -1,0 +1,40 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: telemedicine-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  api:
+    image: oven/bun:latest
+    container_name: telemedicine-api
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: bun run dev
+    ports:
+      - "3000:3000"
+    environment:
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      INNGEST_DEV: 1
+      INNGEST_BASE_URL: http://inngest:8288
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  inngest:
+    image: inngest/inngest:latest
+    container_name: telemedicine-inngest
+    command: inngest dev -u http://api:3000/api/inngest --no-discovery
+    ports:
+      - "8288:8288"
